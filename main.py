@@ -5,6 +5,10 @@ import datetime
 import openai
 import pandas as pd
 from bs4 import BeautifulSoup
+from dotenv import load_dotenv
+
+# === ENV-VARIABLEN LADEN ===
+load_dotenv()
 
 # === KONFIGURATION ===
 BOT_TOKEN = os.environ["BOT_TOKEN"]
@@ -24,14 +28,23 @@ def get_joke():
     return "Witz konnte nicht geladen werden."
 
 def get_weather():
-    url = f"http://api.weatherapi.com/v1/current.json?key={WEATHER_API_KEY}&q={CITY}&lang=de"
-    r = requests.get(url)
-    if r.ok:
-        data = r.json()
-        desc = data["current"]["condition"]["text"]
-        temp = data["current"]["temp_c"]
-        return f"Wetter in {CITY}: {desc}, {temp}°C"
-    return "Wetter konnte nicht geladen werden."
+    api_key = os.getenv("WEATHER_API_KEY")
+    city = CITY
+    url = f"http://api.weatherapi.com/v1/current.json?key={api_key}&q={city}&lang=de"
+
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            condition = data["current"]["condition"]["text"]
+            temp_c = data["current"]["temp_c"]
+            wind_kph = data["current"]["wind_kph"]
+            humidity = data["current"]["humidity"]
+            return f"Wetter in {city}: {condition}, {temp_c}°C, Wind {wind_kph} km/h, Luftfeuchtigkeit {humidity}%"
+        else:
+            return f"⚠️ Fehler beim Abrufen des Wetters: HTTP {response.status_code}"
+    except Exception as e:
+        return f"⚠️ Ausnahmefehler beim Wetterabruf: {e}"
 
 def get_quote():
     try:
@@ -48,18 +61,15 @@ def extract_text_from_url(url):
         response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         text = ' '.join(p.get_text(strip=True) for p in soup.find_all("p"))
-        return text[:3000]  # Trimmen, um unter Token-Grenzen zu bleiben
-    except Exception as e:
+        return text[:3000]
+    except Exception:
         return ""
 
 def summarize_with_chatgpt(all_texts):
-    prompt = (
-        "Du bist ein News-Analyst. Fasse die folgenden Inhalte in den drei wichtigsten Nachrichten (je 2-3 Sätze mit Quelle) "
-        "und 5 weiteren Schlagzeilen (nur Titel + Link) zusammen. Die Texte stammen von Nachrichten-Websites. 
-	Der Empfänger ist Teamleiter eines BI und Daten Teams und sieht sich als Innovationstreiber:
-
-"
-    )
+    prompt = """Du bist ein News-Analyst. Fasse die folgenden Inhalte in den drei wichtigsten Nachrichten (je 2 Sätze mit Titel + Link) zusammen.
+Die Texte stammen von Nachrichten-Websites.
+Der Empfänger ist Teamleiter eines BI- und Daten-Teams und sieht sich als Innovationstreiber:
+"""
     prompt += all_texts
 
     try:
@@ -69,9 +79,10 @@ def summarize_with_chatgpt(all_texts):
             temperature=0.7,
             max_tokens=1000
         )
-        return response.choices[0].message.content.strip()
+        return response.choices[0].message['content'].strip()
     except Exception as e:
         return f"Fehler bei der Zusammenfassung: {e}"
+
 
 def summarize_websites_from_csv():
     try:
@@ -80,10 +91,7 @@ def summarize_websites_from_csv():
         for i, row in df.iterrows():
             text = extract_text_from_url(row["url"])
             if text:
-                all_chunks += f"Quelle: {row['url']}
-{text}
-
-"
+                all_chunks += f"Quelle: {row['url']}\n{text}\n\n"
         return summarize_with_chatgpt(all_chunks)
     except Exception as e:
         return f"Fehler beim Lesen der Webseiten: {e}"
@@ -96,8 +104,13 @@ def send_telegram_message(text):
         "parse_mode": "Markdown",
         "disable_web_page_preview": False
     }
-    r = requests.post(url, data=payload)
-    return r.ok
+    headers = {"Content-Type": "application/json; charset=utf-8"}
+    try:
+        r = requests.post(url, json=payload, headers=headers)
+        return r.ok
+    except Exception as e:
+        print("Fehler beim Telegram-Versand:", e)
+        return False
 
 def main():
     today = datetime.datetime.now().strftime("%d.%m.%Y")
@@ -107,24 +120,12 @@ def main():
     news = summarize_websites_from_csv()
 
     msg = (
-        f"📅 *Guten Morgen!*
-
-🗓 *{today}*
-
-"
-        f"☀️ {weather}
-
-"
-        f"📰 *Nachrichtenzusammenfassung:*
-{news}
-
-"
-        f"😂 *Witz des Tages:*
-{joke}
-
-"
-        f"💬 *Zitat des Tages:*
-{quote}"
+        "📅 *Guten Morgen!*\n\n"
+        f"🗓 *{today}*\n\n"
+        f"☀️ {weather}\n\n"
+        f"😂 *Witz des Tages:*\n{joke}\n\n"
+        f"💬 *Zitat des Tages:*\n{quote}\n\n"
+        f"📰 *Nachrichtenzusammenfassung:*\n{news}"
     )
 
     success = send_telegram_message(msg)
