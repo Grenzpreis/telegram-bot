@@ -68,9 +68,20 @@ def extract_text_from_url(url):
 
 # === ZUSAMMENFASSUNG MIT CHATGPT ===
 def summarize_with_chatgpt(all_texts):
-    prompt = """Du bist ein News-Analyst. Fasse die folgenden Inhalte in den drei wichtigsten Nachrichten (je 2 Sätze mit Titel + Link) zusammen.
-Die Texte stammen von Nachrichten-Websites.
-Der Empfänger ist Teamleiter eines BI- und Daten-Teams und sieht sich als Innovationstreiber:
+    prompt = """Du bist ein News-Analyst. Fasse die folgenden Inhalte in den fünf wichtigsten, inhaltlich unterschiedlichen Nachrichten zusammen.
+
+Bedingungen:
+-Es darf höchstens eine Nachricht pro Website vorkommen.
+-Es sollen keine thematisch doppelten oder stark ähnlichen Nachrichten aufgenommen werden (z. B. unterschiedliche Artikel zur selben Zollentscheidung vermeiden).
+-Bevorzuge Themen aus den Bereichen Business Intelligence, Künstliche Intelligenz, Daten, Technologie und Wirtschaft, wenn sie relevant sind.
+
+Format pro Nachricht:
+-Titel sehr kurz, prägnant und informativ
+-genau zwei Sätze mit den wichtigsten Informationen
+-die vollständige URL zur Originalquelle
+
+Der Empfänger ist Teamleiter eines BI- und Daten-Teams und sieht sich als Innovationstreiber.
+    
 """
     prompt += all_texts
 
@@ -113,7 +124,7 @@ def send_telegram_message(text):
         "chat_id": CHAT_ID,
         "text": text,
         "parse_mode": "Markdown",
-        "disable_web_page_preview": False
+        "disable_web_page_preview": True
     }
     headers = {"Content-Type": "application/json; charset=utf-8"}
     try:
