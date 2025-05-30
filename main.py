@@ -68,7 +68,7 @@ def extract_text_from_url(url):
 
 # === ZUSAMMENFASSUNG MIT CHATGPT ===
 def summarize_with_chatgpt(all_texts):
-    prompt = """Du bist ein News-Analyst. Fasse die folgenden Inhalte in den fünf wichtigsten, inhaltlich unterschiedlichen Nachrichten zusammen.
+    prompt = """Du bist ein News-Analyst. Fasse die folgenden Inhalte in den fünf ungewöhnlichen, aber relevanten, inhaltlich unterschiedlichen Nachrichten zusammen.
 
 Bedingungen:
 -Es darf höchstens eine Nachricht pro Website vorkommen.
@@ -76,18 +76,18 @@ Bedingungen:
 -Bevorzuge Themen aus den Bereichen Business Intelligence, Künstliche Intelligenz, Daten, Technologie und Wirtschaft, wenn sie relevant sind.
 
 Format pro Nachricht:
--Titel sehr kurz, prägnant und informativ
+-<fett>Titel sehr kurz, prägnant und informativ
 -genau zwei Sätze mit den wichtigsten Informationen
--die vollständige URL zur Originalquelle
+-die vollständige URL zum Artikel in der Originalquelle
 
-Der Empfänger ist Teamleiter eines BI- und Daten-Teams und sieht sich als Innovationstreiber.
+Der Empfänger ist Teamleiter eines BI- und Daten-Teams, hat wenig Zeit und schätzt News, die ihm interessante Gespräche ermöglichen – auch außerhalb seines direkten Fachgebiets.
     
 """
     prompt += all_texts
 
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "user", "content": prompt}
             ],
@@ -98,7 +98,7 @@ Der Empfänger ist Teamleiter eines BI- und Daten-Teams und sieht sich als Innov
     except Exception as e:
         return f"Fehler bei der Zusammenfassung: {e}"
 
-# === TEXT VON CSV-WEBSITES LADEN UND ZUSAMMENFASSEN ===
+# === TEXT VON CSV-WEBSITES LADEN UND ZUSAMMENFASSEN===
 def summarize_websites_from_csv():
     try:
         df = pd.read_csv("sites.csv")
@@ -110,6 +110,54 @@ def summarize_websites_from_csv():
         return summarize_with_chatgpt(all_chunks)
     except Exception as e:
         return f"Fehler beim Lesen der Webseiten: {e}"
+
+# === ZUSAMMENFASSUNG MIT CHATGPT  für BI NEWS ===
+def summarize_with_chatgpt_bi(all_texts):
+    prompt = """Du bist ein Business-Intelligence-Analyst. Fasse die folgenden Inhalte in den fünf wichtigsten, inhaltlich unterschiedlichen Nachrichten zusammen.
+
+Bedingungen:
+-Es darf höchstens eine Nachricht pro Website vorkommen.
+-Es sollen keine thematisch doppelten oder stark ähnlichen Nachrichten aufgenommen werden (z. B. unterschiedliche Artikel zur selben Zollentscheidung vermeiden).
+-Bevorzuge Themen aus den Bereichen Business Intelligence, Künstliche Intelligenz, Daten, Technologie und Wirtschaft, wenn sie relevant sind.
+-Nachrichten auf deutsch, auch wenn es die Quelle nicht ist!
+
+Format pro Nachricht:
+-Titel sehr kurz, prägnant und informativ
+-genau zwei Sätze mit den wichtigsten Informationen
+-die vollständige URL zur Originalquelle
+
+Der Empfänger ist Teamleiter eines BI- und Daten-Teams, hat wenig Zeit und schätzt News, die ihm interessante Gespräche ermöglichen.
+    
+"""
+    prompt += all_texts
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1000
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Fehler bei der Zusammenfassung: {e}"
+
+# === TEXT VON CSV-WEBSITES LADEN UND ZUSAMMENFASSEN  für BI NEWS ===
+def summarize_websites_from_csv_bi():
+    try:
+        df = pd.read_csv("sites_bi.csv")
+        all_chunks = ""
+        for i, row in df.iterrows():
+            text = extract_text_from_url(row["url"])
+            if text:
+                all_chunks += f"Quelle: {row['url']}\n{text}\n\n"
+        return summarize_with_chatgpt_bi(all_chunks)
+    except Exception as e:
+        return f"Fehler beim Lesen der Webseiten: {e}"
+
+
 
 # === TELEGRAM-NACHRICHT SENDEN ===
 def send_telegram_message(text):
@@ -141,14 +189,16 @@ def main():
     joke = get_joke()
     quote = get_quote()
     news = summarize_websites_from_csv()
-
+    news_bi = summarize_websites_from_csv_bi()
+    
     msg = (
         "📅 *Guten Morgen!*\n\n"
         f"🗓 *{today}*\n\n"
         f"☀️ {weather}\n\n"
         f"😂 *Witz des Tages:*\n{joke}\n\n"
         f"💬 *Zitat des Tages:*\n{quote}\n\n"
-        f"📰 *Nachrichtenzusammenfassung:*\n{news}"
+        f"📰 *Nachrichtenzusammenfassung:*\n{news}\n\n"
+        f"📰 *BI News:*\n{news_bi}"
     )
 
     success = send_telegram_message(msg)
