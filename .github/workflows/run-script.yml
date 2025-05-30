@@ -2,7 +2,7 @@ name: Run Daily Script
 
 on:
   schedule:
-    - cron: '0 7 * * *'  # Täglich um 7:00 UTC (8:00 MEZ)
+    - cron: '0 6 * * *'  # Täglich um 6:00 UTC (8:00 MEZ)
   workflow_dispatch:  # <-- das hinzufügen
 
 jobs:
